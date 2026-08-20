@@ -10,13 +10,17 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@alarmdrill/core": "workspace:*"
+    "@alarmdrill/agents": "workspace:*",
+    "@alarmdrill/core": "workspace:*",
+    "@alarmdrill/observers": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

@@ -1,6 +1,21 @@
-import { defineError } from '@alarmdrill/core';
-
-export const reportError = defineError('ERR_REPORT');
-
-/** Placeholder until M6. Markdown rendering lands there. */
-export const REPORT_PACKAGE = '@alarmdrill/report';
+export { reportError } from './errors.js';
+export {
+  buildScorecard,
+  scoreOutcome,
+  type Scorecard,
+} from './grading.js';
+export {
+  deriveFinding,
+  deriveFindings,
+  formatDuration,
+  ruleFor,
+  type FindingDeps,
+} from './findings.js';
+export { renderMarkdown, type RenderDeps } from './markdown.js';
+export type {
+  ExperimentOutcome,
+  Finding,
+  GapKind,
+  ProposedRule,
+  RunSummary,
+} from './types.js';

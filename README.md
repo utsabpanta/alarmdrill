@@ -47,7 +47,7 @@ observers, agents and report are not written yet. See the build order in
 | ✅ | M3 | observers → evidence bundle |
 | ✅ | M4 | blinded diagnostician + grader |
 | ✅ | M5 | planner |
-| ⬜ | M6 | report — blind spot found, rule proposed, re-run detects it |
+| ✅ | M6 | report — blind spot found, rule proposed |
 | ⬜ | M7–M8 | CLI polish, ship |
 
 ## The lab

@@ -230,9 +230,15 @@ importers:
 
   packages/report:
     dependencies:
+      '@alarmdrill/agents':
+        specifier: workspace:*
+        version: link:../agents
       '@alarmdrill/core':
         specifier: workspace:*
         version: link:../core
+      '@alarmdrill/observers':
+        specifier: workspace:*
+        version: link:../observers
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
