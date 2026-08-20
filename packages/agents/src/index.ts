@@ -42,3 +42,15 @@ export {
   type TraceStoreDeps,
 } from './trace.js';
 export { replayRun, replayTrace, type ReplayResult } from './replay.js';
+export {
+  experimentKinds,
+  planExperiments,
+  proposedExperimentSchema,
+  watchedMetrics,
+  type AlertRuleSummary,
+  type ExperimentKind,
+  type PlanDeps,
+  type ProposedExperiment,
+  type ServiceNode,
+  type Topology,
+} from './planner.js';
