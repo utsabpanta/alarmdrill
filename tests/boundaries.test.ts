@@ -56,3 +56,46 @@ describe('blinding boundary', () => {
     expect(sourceFiles('observers').length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * SPEC.md: "No test calls a real model." The Anthropic SDK is imported in
+ * exactly one file — the model port — and every test goes through the fake.
+ */
+describe('no test calls a real model', () => {
+  const allTestFiles = (): string[] => {
+    const roots = ['packages', 'apps'];
+    const found: string[] = [];
+    for (const root of roots) {
+      const dir = fileURLToPath(new URL(root, ROOT));
+      for (const entry of readdirSync(dir, { recursive: true, encoding: 'utf8' })) {
+        if (entry.includes('node_modules') || entry.includes('/dist/')) continue;
+        if (entry.endsWith('.test.ts')) found.push(`${dir}/${entry}`);
+      }
+    }
+    return found;
+  };
+
+  it('finds test files to check, so the sweep cannot pass vacuously', () => {
+    expect(allTestFiles().length).toBeGreaterThan(5);
+  });
+
+  it('no test file imports the Anthropic SDK', () => {
+    const offenders = allTestFiles().filter((file) =>
+      /from\s+['"]@anthropic-ai\//.test(readFileSync(file, 'utf8')),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('the Anthropic SDK is imported in exactly one module', () => {
+    const importers: string[] = [];
+    const dir = fileURLToPath(new URL('packages', ROOT));
+    for (const entry of readdirSync(dir, { recursive: true, encoding: 'utf8' })) {
+      if (entry.includes('node_modules') || entry.includes('/dist/')) continue;
+      if (!entry.endsWith('.ts')) continue;
+      const path = `${dir}/${entry}`;
+      if (/from\s+['"]@anthropic-ai\//.test(readFileSync(path, 'utf8'))) importers.push(entry);
+    }
+    // One interface, with a fake for tests (SPEC.md tech stack).
+    expect(importers).toEqual(['agents/src/model.ts']);
+  });
+});

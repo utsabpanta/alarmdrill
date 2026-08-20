@@ -10,13 +10,19 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist", "prompts"],
+  "files": [
+    "dist",
+    "prompts"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@alarmdrill/core": "workspace:*"
+    "@alarmdrill/core": "workspace:*",
+    "@alarmdrill/observers": "workspace:*",
+    "@anthropic-ai/sdk": "^0.120.0",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
