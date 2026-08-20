@@ -44,7 +44,7 @@ observers, agents and report are not written yet. See the build order in
 | ✅ | M0 | pnpm workspace, strict TS, CI |
 | ✅ | M1 | the lab, with documented blind spots |
 | ✅ | M2 | injectors + cleanup guarantees |
-| ⬜ | M3 | observers → evidence bundle |
+| ✅ | M3 | observers → evidence bundle |
 | ⬜ | M4 | blinded diagnostician + grader |
 | ⬜ | M5 | planner |
 | ⬜ | M6 | report — blind spot found, rule proposed, re-run detects it |

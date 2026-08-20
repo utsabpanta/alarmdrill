@@ -1,13 +1,35 @@
-import { defineError } from '@alarmdrill/core';
-
-/**
- * This package must never import `@alarmdrill/injectors`, directly or
- * transitively. It builds the evidence bundle the diagnostician sees, and any
- * knowledge of the injected fault leaking in here fails silently — the tool
- * would report excellent observability for systems that have none.
- * See SPEC.md, "Two things that must not break".
- */
-export const observationError = defineError('ERR_OBSERVATION');
-
-/** Placeholder until M3. Alertmanager/Prometheus polling lands there. */
-export const OBSERVERS_PACKAGE = '@alarmdrill/observers';
+export { observationError } from './errors.js';
+export {
+  createAlertmanagerClient,
+  toObserved,
+  type AlertmanagerClient,
+  type AlertmanagerDeps,
+  type ObservedAlert,
+  type RawAlert,
+} from './alertmanager.js';
+export {
+  createPrometheusClient,
+  type MetricSample,
+  type MetricSeries,
+  type PrometheusClient,
+  type PrometheusDeps,
+  type TimeRange,
+} from './prometheus.js';
+export {
+  scoreDetection,
+  summariseDetection,
+  type AlertPoll,
+  type DetectionInput,
+  type DetectionResult,
+  type SuiteDetectionSummary,
+} from './detection.js';
+export {
+  buildEvidenceBundle,
+  collectMetrics,
+  STANDARD_QUERIES,
+  type CollectMetricsDeps,
+  type EvidenceBundle,
+  type EvidenceInput,
+  type NamedSeries,
+} from './evidence.js';
+export { startAlertWatch, captureBaseline, type WatchDeps, type WatchHandle } from './watch.js';

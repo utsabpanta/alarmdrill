@@ -10,14 +10,17 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json"
   },
   "comment": "MUST NOT depend on @alarmdrill/injectors — see SPEC.md 'Blinding'. Enforced by eslint + tests/boundaries.test.ts.",
   "dependencies": {
-    "@alarmdrill/core": "workspace:*"
+    "@alarmdrill/core": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
