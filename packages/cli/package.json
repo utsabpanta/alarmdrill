@@ -1,0 +1,35 @@
+{
+  "name": "alarmdrill",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "alarmdrill": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "dev": "tsx src/bin.ts"
+  },
+  "dependencies": {
+    "@alarmdrill/agents": "workspace:*",
+    "@alarmdrill/core": "workspace:*",
+    "@alarmdrill/injectors": "workspace:*",
+    "@alarmdrill/observers": "workspace:*",
+    "@alarmdrill/report": "workspace:*",
+    "commander": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

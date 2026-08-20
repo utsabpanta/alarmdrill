@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+*.log
+
+# run journals, evidence bundles and traces
+.alarmdrill/
+runs/
+
+.DS_Store
+.env
+.env.*
+!.env.example

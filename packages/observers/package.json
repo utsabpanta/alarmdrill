@@ -1,0 +1,26 @@
+{
+  "name": "@alarmdrill/observers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "comment": "MUST NOT depend on @alarmdrill/injectors — see SPEC.md 'Blinding'. Enforced by eslint + tests/boundaries.test.ts.",
+  "dependencies": {
+    "@alarmdrill/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}
