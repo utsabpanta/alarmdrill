@@ -16,6 +16,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "lab:up": "docker compose -f apps/lab/docker-compose.yml up -d --wait",
     "lab:down": "docker compose -f apps/lab/docker-compose.yml down -v"
   },

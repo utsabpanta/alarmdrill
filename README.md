@@ -43,7 +43,7 @@ observers, agents and report are not written yet. See the build order in
 |---|---|---|
 | ✅ | M0 | pnpm workspace, strict TS, CI |
 | ✅ | M1 | the lab, with documented blind spots |
-| ⬜ | M2 | injectors + cleanup guarantees |
+| ✅ | M2 | injectors + cleanup guarantees |
 | ⬜ | M3 | observers → evidence bundle |
 | ⬜ | M4 | blinded diagnostician + grader |
 | ⬜ | M5 | planner |
@@ -73,13 +73,39 @@ Verified behaviour: stop `redis` and the catalog keeps serving 200s in ~3ms
 while `catalog_cache_lookups_total{result="error"}` climbs and nothing alerts.
 Stop `payments` and `ServiceDown` fires within ~20s.
 
+## Breaking things safely
+
+We break things on purpose, so cleanup is a correctness property rather than a
+nicety. Every injection:
+
+- is **journalled to disk before it is applied**, so a process that dies between
+  the two still leaves a record of what to undo
+- has an **idempotent `revert()`**, because the happy path, the error path, a
+  deadman timer and crash recovery all call it, and more than one routinely fires
+- is covered by a **deadman timer** that reverts unconditionally after
+  `maxDuration` (120s by default), whatever else has gone wrong
+- reverts on **SIGINT/SIGTERM**, then exits non-zero — an interrupted drill
+  produced no verdict, and CI must not read that as a pass
+- must name a target that is both **explicitly allowlisted** and does not look
+  like production; deny beats allow, so an allowlist entry cannot authorise
+  `payments-prod`
+
+Only one fault runs at a time. Two concurrent faults make the diagnosis
+ambiguous and the blast radius unbounded.
+
+The guarantee is tested the only way worth testing it: a child process journals
+a fault, applies it, and is **SIGKILLed** — no handlers, no `finally` blocks — and
+a fresh session then reverts it using nothing but the journal on disk.
+
 ## Development
 
 Requires Node 22 and pnpm 10. **pnpm only** — never npm or yarn.
 
 ```bash
-pnpm -r typecheck && pnpm test
+pnpm -r typecheck && pnpm test   # unit tests, sub-second
 pnpm lint
+
+pnpm lab:up && pnpm test:integration   # needs the lab running
 ```
 
 Conventions, hard rules and house style live in [CLAUDE.md](./CLAUDE.md); the

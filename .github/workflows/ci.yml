@@ -13,11 +13,11 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -38,3 +38,31 @@ jobs:
       - run: pnpm build
 
       - run: pnpm test
+
+  # Proves the cleanup guarantee that matters most: SIGKILL a run mid-injection
+  # and the next process must put the target back. Needs the real lab, so it is
+  # a separate job — `check` stays the fast gate.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: start lab
+        run: pnpm lab:up
+
+      - run: pnpm test:integration
+
+      - name: lab logs on failure
+        if: failure()
+        run: docker compose -f apps/lab/docker-compose.yml logs --tail=100
+
+      - name: stop lab
+        if: always()
+        run: pnpm lab:down

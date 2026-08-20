@@ -4,5 +4,5 @@
     "customConditions": ["development"],
     "noEmit": true
   },
-  "include": ["vitest.config.ts", "tests/**/*.ts"]
+  "include": ["vitest.config.ts", "vitest.integration.config.ts", "tests/**/*.ts"]
 }
