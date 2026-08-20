@@ -1,0 +1,16 @@
+# Alertmanager exists here to be read, not to notify anyone. alarmdrill's
+# observers poll its API for firing alerts (M3), so nothing needs a receiver
+# that actually delivers.
+#
+# group_wait is 0s on purpose: any grouping delay would be counted as detection
+# latency and would inflate every MTTD number the tool reports.
+
+route:
+  receiver: blackhole
+  group_by: ['alertname', 'job']
+  group_wait: 0s
+  group_interval: 10s
+  repeat_interval: 1h
+
+receivers:
+  - name: blackhole

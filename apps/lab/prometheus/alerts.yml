@@ -1,0 +1,61 @@
+# The lab's alert rules. These are DELIBERATELY INCOMPLETE.
+#
+# Every rule below is here for a reason, and — more importantly — every rule
+# that is missing is missing for a reason. Both are documented in ../README.md,
+# and apps/lab/src/planted-gaps.test.ts asserts this file still matches that
+# document. Adding a rule here without updating the README will fail the build.
+
+groups:
+  - name: lab
+    interval: 5s
+    rules:
+      # Positive control. This one works, and it is the only reason the lab
+      # grades a C rather than an F.
+      - alert: ServiceDown
+        expr: up{job=~"gateway|checkout|payments|catalog|psp-mock"} == 0
+        for: 15s
+        labels:
+          severity: critical
+        annotations:
+          summary: '{{ $labels.job }} is not responding to scrapes'
+          runbook: 'Check the container, then its dependencies.'
+
+      # Fires for anything that slows the edge down, and names nothing. An
+      # engineer paged by this knows the shop is slow and nothing else — not
+      # which hop, not which dependency. That is the finding.
+      - alert: GatewayHighLatency
+        expr: >-
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{service="gateway"}[1m]))
+          ) > 0.5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Gateway p95 latency above 500ms'
+
+      # Only catches faults that produce 5xx. Declines return 200 and cache
+      # failures fall back to 200, so neither is visible here.
+      - alert: GatewayErrorRate
+        expr: >-
+          sum(rate(http_requests_total{service="gateway",status=~"5.."}[1m]))
+          / sum(rate(http_requests_total{service="gateway"}[1m])) > 0.05
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Gateway serving more than 5% 5xx'
+
+      # THE NOISY ONE. The threshold sits below a healthy Node process's
+      # resident memory, so this is firing right now and has been for weeks.
+      # It exists so that a harmless blip still produces "an alert fired" —
+      # and alarmdrill must still score that fault as UNDETECTED. Measuring
+      # alert volume instead of alert value fails exactly here.
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes > 25e6
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.service }} resident memory above 25MB'

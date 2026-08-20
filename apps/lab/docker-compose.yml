@@ -1,0 +1,191 @@
+name: alarmdrill-lab
+
+# Every container carries `alarmdrill.target=lab`. M2's safety allowlist keys on
+# that label, so an injector can refuse to touch anything it did not put there.
+
+x-lab-image: &lab-image
+  build:
+    context: ../..
+    dockerfile: apps/lab/Dockerfile
+  image: alarmdrill-lab:dev
+  restart: unless-stopped
+  labels:
+    alarmdrill.target: lab
+  networks: [lab]
+
+x-lab-env: &lab-env
+  LOG_LEVEL: info
+  CHECKOUT_URL: http://checkout:3001
+  CATALOG_URL: http://catalog:3004
+  GATEWAY_URL: http://gateway:3000
+  # Inter-service hops go through Toxiproxy so M2 has somewhere to attach a toxic.
+  PAYMENTS_URL: http://toxiproxy:18002
+  PSP_URL: http://toxiproxy:18003
+  REDIS_URL: redis://toxiproxy:18379
+  DATABASE_URL: postgres://lab:lab@toxiproxy:15432/lab
+
+services:
+  gateway:
+    <<: *lab-image
+    container_name: alarmdrill-lab-gateway
+    environment:
+      <<: *lab-env
+      SERVICE: gateway
+      PORT: 3000
+    ports: ['3000:3000']
+    healthcheck: &node-health
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:'+process.env.PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    depends_on:
+      checkout: { condition: service_healthy }
+      catalog: { condition: service_healthy }
+
+  checkout:
+    <<: *lab-image
+    container_name: alarmdrill-lab-checkout
+    environment:
+      <<: *lab-env
+      SERVICE: checkout
+      PORT: 3001
+      DB_POOL_SIZE: 5
+    healthcheck: *node-health
+    depends_on:
+      postgres: { condition: service_healthy }
+      toxiproxy: { condition: service_started }
+
+  payments:
+    <<: *lab-image
+    container_name: alarmdrill-lab-payments
+    environment:
+      <<: *lab-env
+      SERVICE: payments
+      PORT: 3002
+    healthcheck: *node-health
+    depends_on:
+      toxiproxy: { condition: service_started }
+
+  psp-mock:
+    <<: *lab-image
+    container_name: alarmdrill-lab-psp-mock
+    environment:
+      <<: *lab-env
+      SERVICE: psp-mock
+      PORT: 3003
+      # Baseline decline rate. M2's http-fault injector drives this to 0.6.
+      PSP_DECLINE_RATE: 0.02
+    ports: ['3003:3003']
+    healthcheck: *node-health
+
+  catalog:
+    <<: *lab-image
+    container_name: alarmdrill-lab-catalog
+    environment:
+      <<: *lab-env
+      SERVICE: catalog
+      PORT: 3004
+      DB_POOL_SIZE: 5
+    healthcheck: *node-health
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      toxiproxy: { condition: service_started }
+
+  loadgen:
+    <<: *lab-image
+    container_name: alarmdrill-lab-loadgen
+    environment:
+      <<: *lab-env
+      SERVICE: loadgen
+      LOAD_RPS: 20
+    depends_on:
+      gateway: { condition: service_healthy }
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: alarmdrill-lab-postgres
+    restart: unless-stopped
+    labels:
+      alarmdrill.target: lab
+    environment:
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: lab
+      POSTGRES_DB: lab
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U lab -d lab']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [lab]
+
+  redis:
+    image: redis:7-alpine
+    container_name: alarmdrill-lab-redis
+    restart: unless-stopped
+    labels:
+      alarmdrill.target: lab
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [lab]
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    container_name: alarmdrill-lab-toxiproxy
+    restart: unless-stopped
+    labels:
+      alarmdrill.target: lab
+    # Default API host is localhost, which would make it unreachable from both
+    # the other containers and the injectors running on the host.
+    command: ['-host=0.0.0.0', '-config=/config/toxiproxy.json']
+    volumes:
+      - ./toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro
+    ports: ['8474:8474']
+    networks: [lab]
+
+  prometheus:
+    image: prom/prometheus:v3.6.0
+    container_name: alarmdrill-lab-prometheus
+    restart: unless-stopped
+    labels:
+      alarmdrill.target: lab
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=2h
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports: ['9090:9090']
+    depends_on:
+      alertmanager: { condition: service_started }
+    networks: [lab]
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    container_name: alarmdrill-lab-alertmanager
+    restart: unless-stopped
+    labels:
+      alarmdrill.target: lab
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports: ['9093:9093']
+    networks: [lab]
+
+networks:
+  lab:
+    name: alarmdrill-lab

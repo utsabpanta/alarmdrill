@@ -1,0 +1,26 @@
+[
+  {
+    "name": "checkout-to-payments",
+    "listen": "0.0.0.0:18002",
+    "upstream": "payments:3002",
+    "enabled": true
+  },
+  {
+    "name": "payments-to-psp",
+    "listen": "0.0.0.0:18003",
+    "upstream": "psp-mock:3003",
+    "enabled": true
+  },
+  {
+    "name": "catalog-to-redis",
+    "listen": "0.0.0.0:18379",
+    "upstream": "redis:6379",
+    "enabled": true
+  },
+  {
+    "name": "app-to-postgres",
+    "listen": "0.0.0.0:15432",
+    "upstream": "postgres:5432",
+    "enabled": true
+  }
+]
