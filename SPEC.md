@@ -36,7 +36,7 @@ alarmdrill run --suite baseline
 | CLI | commander | |
 | Validation | zod | Config files and **all** LLM output |
 | Logging | pino | |
-| Tests | vitest + testcontainers | |
+| Tests | vitest | Integration tests drive the lab's own containers; testcontainers needs Node >=22.22 |
 | Network faults | Toxiproxy (HTTP API) | Latency, timeouts, resets |
 | Container faults | Docker Engine API via dockerode | Stop, pause, CPU/mem limits |
 | Metrics | Prometheus + Alertmanager | Read-only; we don't replace them |

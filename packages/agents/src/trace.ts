@@ -38,7 +38,9 @@ export const traceSchema = z.object({
     preexistingAlertNames: z.array(z.string()),
   }),
   grade: z.object({
-    verdict: z.enum(['correct', 'partial', 'incorrect']),
+    // Wider than the grader's own verdicts: a --detect-only run records
+    // "skipped", and a trace that cannot be read back is worse than useless.
+    verdict: z.enum(['correct', 'partial', 'incorrect', 'skipped']),
     votes: z.array(gradeSchema),
     disagreementRate: z.number(),
     needsReview: z.boolean(),

@@ -7,6 +7,9 @@ import type { DetectionResult } from '@alarmdrill/observers';
  * until here is the point: a fault can be detected and misdiagnosed, or
  * diagnosed correctly having never alerted at all.
  */
+/** Grades as recorded, including runs where no diagnosis was attempted. */
+export type RecordedVerdict = 'correct' | 'partial' | 'incorrect' | 'skipped';
+
 export interface ExperimentOutcome {
   readonly id: string;
   /** Human-readable name of what was broken. Safe here — the agent has finished. */
@@ -14,7 +17,7 @@ export interface ExperimentOutcome {
   readonly target: string;
   readonly detection: DetectionResult;
   readonly diagnosis: Diagnosis;
-  readonly grade: GradeResult;
+  readonly grade: Omit<GradeResult, 'verdict'> & { readonly verdict: RecordedVerdict };
   /** Set when the fault was expected to be undiagnosable from telemetry alone. */
   readonly expectedUndiagnosable?: boolean;
 }

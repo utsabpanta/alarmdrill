@@ -75,6 +75,16 @@ export const suiteSchema = z
       alertmanager: z.url().default('http://localhost:9093'),
       prometheus: z.url().default('http://localhost:9090'),
     }),
+    /**
+     * The dependency graph. Declared rather than discovered: Prometheus knows
+     * what it scrapes, not what calls what, and a planner working from a
+     * hardcoded map is only ever right about one system.
+     *
+     * Omit it and `plan` reports what it can from scrape targets alone.
+     */
+    topology: z
+      .record(z.string().min(1), z.array(z.string().min(1)))
+      .default({}),
     safety: z.object({
       /** Exact target names that may be broken. No wildcards, on purpose. */
       allow: z.array(z.string().min(1)).min(1),

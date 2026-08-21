@@ -1,7 +1,6 @@
 {
   "name": "@alarmdrill/core",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
   "exports": {
     ".": {
@@ -10,7 +9,9 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json"
@@ -22,5 +23,23 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "typescript": "catalog:"
-  }
+  },
+  "license": "MIT",
+  "author": "Utsab Pant",
+  "homepage": "https://github.com/utsabpanta/alarmdrill#readme",
+  "bugs": {
+    "url": "https://github.com/utsabpanta/alarmdrill/issues"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/utsabpanta/alarmdrill.git",
+    "directory": "packages/core"
+  },
+  "description": "Run lifecycle, injected clock and typed errors for alarmdrill."
 }

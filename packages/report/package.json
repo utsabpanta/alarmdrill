@@ -1,7 +1,6 @@
 {
   "name": "@alarmdrill/report",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
   "exports": {
     ".": {
@@ -25,5 +24,23 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "typescript": "catalog:"
-  }
+  },
+  "license": "MIT",
+  "author": "Utsab Pant",
+  "homepage": "https://github.com/utsabpanta/alarmdrill#readme",
+  "bugs": {
+    "url": "https://github.com/utsabpanta/alarmdrill/issues"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/utsabpanta/alarmdrill.git",
+    "directory": "packages/report"
+  },
+  "description": "Findings, proposed PromQL rules and the scorecard."
 }

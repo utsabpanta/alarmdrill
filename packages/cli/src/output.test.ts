@@ -5,7 +5,7 @@ import { evaluateThresholds } from './threshold.js';
 const scorecard = {
   detected: 3, diagnosed: 2, total: 4,
   detectionRate: 0.75, diagnosisRate: 0.5,
-  medianTimeToDetectMs: 76_000, grade: 'C+', needsReview: 0,
+  medianTimeToDetectMs: 76_000, grade: 'C+', needsReview: 0, graded: 4,
 };
 
 const experiments: JsonExperiment[] = [
@@ -85,7 +85,10 @@ describe('detect-only output', () => {
       verdict: 'skipped', needsReview: false, finding: 'blind_spot', proposedRule: null,
     },
   ];
-  const card = { ...scorecard, detected: 0, diagnosed: 0, total: 1, detectionRate: 0, diagnosisRate: 0 };
+  const card = {
+    ...scorecard, detected: 0, diagnosed: 0, total: 1,
+    detectionRate: 0, diagnosisRate: 0, graded: 0,
+  };
 
   it('reports no grade rather than inventing one', () => {
     // A grade combines detection and diagnosis. With no diagnosis attempted

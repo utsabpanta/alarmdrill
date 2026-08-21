@@ -16,6 +16,8 @@ export interface Scorecard {
   readonly diagnosisRate: number;
   readonly medianTimeToDetectMs: number | null;
   readonly grade: string;
+  /** Experiments whose diagnosis was actually graded. */
+  readonly graded: number;
   readonly needsReview: number;
 }
 
@@ -49,11 +51,20 @@ const LETTERS: readonly { min: number; letter: string }[] = [
  * said so — refusing to guess from absent evidence is the right answer, and
  * penalising it would push the tool toward rewarding confident invention.
  */
-export function scoreOutcome(outcome: ExperimentOutcome): { detected: number; diagnosed: number } {
+export function scoreOutcome(outcome: ExperimentOutcome): {
+  detected: number;
+  diagnosed: number;
+  graded: boolean;
+} {
   const detected = outcome.detection.detected ? 1 : 0;
+  if (outcome.grade.verdict === 'skipped') {
+    // Not scored at all. Counting it as zero would report a diagnosis failure
+    // that never happened.
+    return { detected, diagnosed: 0, graded: false };
+  }
   const diagnosed =
     outcome.grade.verdict === 'correct' ? 1 : outcome.grade.verdict === 'partial' ? 0.5 : 0;
-  return { detected, diagnosed };
+  return { detected, diagnosed, graded: true };
 }
 
 export function buildScorecard(run: RunSummary): Scorecard {
@@ -61,6 +72,7 @@ export function buildScorecard(run: RunSummary): Scorecard {
   const scores = run.outcomes.map(scoreOutcome);
   const detected = scores.reduce((sum, s) => sum + s.detected, 0);
   const diagnosed = scores.reduce((sum, s) => sum + s.diagnosed, 0);
+  const gradedCount = scores.filter((s) => s.graded).length;
 
   const times = run.outcomes
     .map((o) => o.detection.timeToDetectMs)
@@ -68,10 +80,13 @@ export function buildScorecard(run: RunSummary): Scorecard {
     .sort((a, b) => a - b);
 
   const detectionRate = total === 0 ? 0 : detected / total;
-  const diagnosisRate = total === 0 ? 0 : diagnosed / total;
+  // Averaged over experiments that were actually graded, so a detect-only run
+  // does not read as a diagnosis failure.
+  const diagnosisRate = gradedCount === 0 ? 0 : diagnosed / gradedCount;
   // Detection and diagnosis weigh equally: knowing something broke is worth no
   // more than being able to work out what.
-  const overall = total === 0 ? 0 : (detectionRate + diagnosisRate) / 2;
+  const overall =
+    total === 0 ? 0 : gradedCount === 0 ? detectionRate : (detectionRate + diagnosisRate) / 2;
 
   return {
     detected,
@@ -80,7 +95,9 @@ export function buildScorecard(run: RunSummary): Scorecard {
     detectionRate,
     diagnosisRate,
     medianTimeToDetectMs: medianOf(times),
-    grade: LETTERS.find((entry) => overall >= entry.min)?.letter ?? 'F',
+    graded: gradedCount,
+    grade:
+      gradedCount === 0 ? 'n/a' : (LETTERS.find((entry) => overall >= entry.min)?.letter ?? 'F'),
     needsReview: run.outcomes.filter((o) => o.grade.needsReview).length,
   };
 }

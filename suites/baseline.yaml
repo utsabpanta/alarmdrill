@@ -16,6 +16,15 @@ endpoints:
   alertmanager: http://localhost:9093
   prometheus: http://localhost:9090
 
+# Who calls whom. Prometheus knows what it scrapes, not what depends on what,
+# so the graph is declared. A name here that never appears in `up` is an
+# unmonitored dependency — which is exactly what `plan` ranks highest.
+topology:
+  gateway: [checkout, catalog]
+  checkout: [payments, postgres]
+  payments: [psp-mock]
+  catalog: [redis, postgres]
+
 # Nothing outside this list can be touched, and a name that looks like
 # production is refused even if listed.
 safety:

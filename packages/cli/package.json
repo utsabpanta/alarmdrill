@@ -1,7 +1,6 @@
 {
   "name": "alarmdrill",
   "version": "0.0.0",
-  "private": true,
   "description": "Inject a known fault, then grade whether your monitoring would have caught it.",
   "license": "MIT",
   "author": "Utsab Pant",

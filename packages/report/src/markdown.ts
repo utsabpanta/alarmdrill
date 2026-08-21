@@ -79,7 +79,9 @@ function renderScorecard(scorecard: Scorecard): string {
     '| | |',
     '|---|---|',
     `| Detection | ${String(scorecard.detected)}/${String(scorecard.total)} (${pct(scorecard.detectionRate)}) |`,
-    `| Diagnosis | ${String(scorecard.diagnosed)}/${String(scorecard.total)} (${pct(scorecard.diagnosisRate)}) |`,
+    scorecard.graded === 0
+      ? '| Diagnosis | not attempted |'
+      : `| Diagnosis | ${String(scorecard.diagnosed)}/${String(scorecard.graded)} (${pct(scorecard.diagnosisRate)}) |`,
     `| Median time to detect | ${
       scorecard.medianTimeToDetectMs === null
         ? 'n/a — nothing was detected'
@@ -118,7 +120,7 @@ function renderFindings(findings: readonly Finding[], run: RunSummary): string {
       `**${KIND_LABEL[finding.kind]}** · ${detection}${noise}`,
       '',
       finding.explanation,
-      outcome === undefined
+      outcome === undefined || outcome.grade.verdict === 'skipped'
         ? ''
         : `\n> The blinded responder concluded: *${outcome.diagnosis.suspectedComponent}* (${outcome.diagnosis.faultCategory}, ${outcome.diagnosis.confidence} confidence) — graded **${outcome.grade.verdict}**.`,
     ].join('\n');

@@ -1,7 +1,6 @@
 {
   "name": "@alarmdrill/observers",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
   "exports": {
     ".": {
@@ -17,7 +16,6 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json"
   },
-  "comment": "MUST NOT depend on @alarmdrill/injectors — see SPEC.md 'Blinding'. Enforced by eslint + tests/boundaries.test.ts.",
   "dependencies": {
     "@alarmdrill/core": "workspace:*",
     "zod": "catalog:"
@@ -25,5 +23,23 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "typescript": "catalog:"
-  }
+  },
+  "license": "MIT",
+  "author": "Utsab Pant",
+  "homepage": "https://github.com/utsabpanta/alarmdrill#readme",
+  "bugs": {
+    "url": "https://github.com/utsabpanta/alarmdrill/issues"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/utsabpanta/alarmdrill.git",
+    "directory": "packages/observers"
+  },
+  "description": "Alertmanager/Prometheus polling and the blinded evidence bundle."
 }

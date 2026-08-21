@@ -28,13 +28,20 @@ export function deriveFinding(outcome: ExperimentOutcome, deps: FindingDeps): Fi
   if (!outcome.detection.detected) {
     // Nothing novel fired. Which kind of nothing decides the finding.
     if (candidate === undefined) {
+      // Only quote the responder when there was one. In a detect-only run the
+      // "missing telemetry" field is a placeholder, and presenting it as
+      // testimony would be inventing a quote.
+      const noted =
+        outcome.grade.verdict === 'skipped'
+          ? ''
+          : `The agent noted it would have needed ${quote(outcome.diagnosis.missingTelemetry)}. `;
       return {
         experimentId: outcome.id,
         kind: 'needs_instrumentation',
         title: `${outcome.faultDescription} is invisible, and no rule can fix it`,
         explanation:
           `Nothing alerted, and nothing could have: no metric records this failure. ` +
-          `The agent noted it would have needed ${quote(outcome.diagnosis.missingTelemetry)}. ` +
+          noted +
           `This is an instrumentation task, not an alerting one — write the metric first, then the rule.`,
       };
     }
@@ -46,6 +53,21 @@ export function deriveFinding(outcome: ExperimentOutcome, deps: FindingDeps): Fi
         `No alert fired, but the signal was already being recorded — nothing was reading it. ` +
         `This gap can be closed with a rule today.`,
       proposedRule: candidate,
+    };
+  }
+
+  // No diagnosis was attempted, so nothing can be said about whether the alert
+  // was useful — only that it fired. Claiming otherwise would put words in a
+  // responder's mouth that no responder ever said.
+  if (outcome.grade.verdict === 'skipped') {
+    return {
+      experimentId: outcome.id,
+      kind: 'covered',
+      title: `${outcome.faultDescription} was detected`,
+      explanation:
+        `Detected in ${formatDuration(outcome.detection.timeToDetectMs ?? 0)}. ` +
+        'Diagnosis was not attempted in this run, so whether the alert was actually ' +
+        'useful is unmeasured.',
     };
   }
 

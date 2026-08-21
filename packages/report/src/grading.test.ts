@@ -15,17 +15,17 @@ const graded = (verdict: 'correct' | 'partial' | 'incorrect', needsReview = fals
 describe('scoreOutcome', () => {
   it('gives a partial diagnosis half credit', () => {
     expect(scoreOutcome(outcome({ detection: detected(1_000), grade: graded('partial') })))
-      .toEqual({ detected: 1, diagnosed: 0.5 });
+      .toEqual({ detected: 1, diagnosed: 0.5, graded: true });
   });
 
   it('scores detection and diagnosis independently', () => {
     // Alerted loudly, diagnosed wrongly — the case that matters most.
     expect(scoreOutcome(outcome({ detection: detected(1_000), grade: graded('incorrect') })))
-      .toEqual({ detected: 1, diagnosed: 0 });
+      .toEqual({ detected: 1, diagnosed: 0, graded: true });
 
     // Never alerted, but a responder could still work it out from metrics.
     expect(scoreOutcome(outcome({ detection: missed, grade: graded('correct') })))
-      .toEqual({ detected: 0, diagnosed: 1 });
+      .toEqual({ detected: 0, diagnosed: 1, graded: true });
   });
 });
 
@@ -73,7 +73,8 @@ describe('buildScorecard', () => {
   });
 
   it('does not divide by zero on an empty run', () => {
-    expect(buildScorecard(run([]))).toMatchObject({ total: 0, grade: 'F', detectionRate: 0 });
+    // Nothing was graded, so there is no grade — not an F.
+    expect(buildScorecard(run([]))).toMatchObject({ total: 0, grade: 'n/a', detectionRate: 0 });
   });
 
   it('awards an A only when everything was caught and diagnosed', () => {
@@ -117,5 +118,30 @@ describe('curve calibration', () => {
       ]),
     );
     expect(card.grade).toBe('F');
+  });
+});
+
+describe('runs where diagnosis was skipped', () => {
+  const skipped = { verdict: 'skipped' as const, votes: [], disagreementRate: 0, needsReview: false, promptVersion: 'n/a' };
+
+  it('reports no grade rather than an F', () => {
+    // Counting a skipped diagnosis as zero would report a failure that never
+    // happened — nobody was asked, so nobody got it wrong.
+    const card = buildScorecard(run([
+      outcome({ id: '1', detection: detected(20_000), grade: skipped }),
+      outcome({ id: '2', detection: missed, grade: skipped }),
+    ]));
+    expect(card.grade).toBe('n/a');
+    expect(card.graded).toBe(0);
+    expect(card.detected).toBe(1);
+  });
+
+  it('averages diagnosis over graded experiments only in a mixed run', () => {
+    const card = buildScorecard(run([
+      outcome({ id: '1', detection: detected(10_000), grade: graded('correct') }),
+      outcome({ id: '2', detection: detected(10_000), grade: skipped }),
+    ]));
+    expect(card.graded).toBe(1);
+    expect(card.diagnosisRate).toBe(1);
   });
 });

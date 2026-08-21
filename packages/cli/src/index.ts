@@ -11,7 +11,10 @@ import {
   createToxiproxyClient,
   installSignalCleanup,
 } from '@alarmdrill/injectors';
+import { writeFile } from 'node:fs/promises';
 import { createTraceStore, createAnthropicModel, replayRun } from '@alarmdrill/agents';
+import { renderMarkdown } from '@alarmdrill/report';
+import type { ObservedAlert } from '@alarmdrill/observers';
 import { planExperiments } from '@alarmdrill/agents';
 import { Command } from 'commander';
 import { runCommand } from './commands/run.js';
@@ -136,6 +139,60 @@ export function buildProgram(): Command {
     });
 
   program
+    .command('report <runId>')
+    .description('render a markdown report from a recorded run — no injection, no model')
+    .option('--trace-dir <path>', 'where run traces live', '.alarmdrill/traces')
+    .option('-o, --out <path>', 'write to a file instead of stdout')
+    .requiredOption('-s, --suite <path>', 'suite file, used to read which metrics exist')
+    .action(async (runId: string, options: { traceDir: string; out?: string; suite: string }) => {
+      const suite = loadSuite(options.suite);
+      const store = createTraceStore({ dir: options.traceDir, clock: systemClock });
+      const traces = await store.list(runId);
+      const first = traces[0];
+      if (first === undefined) throw new Error(`run ${runId} has no traces`);
+
+      // Which metrics exist decides whether a gap is "write a rule" or "go
+      // instrument this", and that is a property of the system now — not of
+      // whatever was true when the run happened.
+      const prometheus = createPrometheusClient({ baseUrl: suite.endpoints.prometheus });
+      const knownMetrics = await discoverKnownMetrics(prometheus);
+
+      const markdown = renderMarkdown({
+        knownMetrics,
+        run: {
+          runId,
+          startedAt: first.createdAt,
+          modelName: first.modelName,
+          promptVersions: first.promptVersions,
+          outcomes: traces.map((trace) => ({
+            id: trace.experimentId,
+            faultDescription: trace.groundTruth.description,
+            target: trace.groundTruth.expectedComponent,
+            detection: {
+              detected: trace.detection.detected,
+              timeToDetectMs: trace.detection.timeToDetectMs,
+              firstDetectedAt: null,
+              novel: trace.detection.novelAlertNames.map(namedAlert),
+              preexisting: trace.detection.preexistingAlertNames.map(namedAlert),
+            },
+            diagnosis: trace.diagnosis,
+            grade: trace.grade,
+            ...(trace.groundTruth.expectedUndiagnosable === undefined
+              ? {}
+              : { expectedUndiagnosable: trace.groundTruth.expectedUndiagnosable }),
+          })),
+        },
+      });
+
+      if (options.out === undefined) {
+        process.stdout.write(markdown);
+      } else {
+        await writeFile(options.out, markdown, 'utf8');
+        process.stdout.write(`wrote ${options.out}\n`);
+      }
+    });
+
+  program
     .command('replay <runId>')
     .description('re-grade a recorded run against the current grader prompt — no injection')
     .option('--trace-dir <path>', 'where run traces live', '.alarmdrill/traces')
@@ -170,6 +227,42 @@ interface RunCommandOptions {
   skipPreflight?: boolean;
 }
 
+/**
+ * Traces record alert names, not whole alert objects — the report only needs
+ * the name, and storing the rest would bloat every trace file.
+ */
+function namedAlert(alertname: string): ObservedAlert {
+  return {
+    fingerprint: alertname,
+    alertname,
+    severity: 'unknown',
+    labels: { alertname },
+    annotations: {},
+    startsAt: '',
+    silenced: false,
+  };
+}
+
+const PROBE_METRICS = [
+  'up',
+  'http_request_duration_seconds_bucket',
+  'http_requests_total',
+  'process_resident_memory_bytes',
+  'catalog_cache_lookups_total',
+  'db_pool_connections',
+];
+
+async function discoverKnownMetrics(
+  prometheus: ReturnType<typeof createPrometheusClient>,
+): Promise<string[]> {
+  const found: string[] = [];
+  for (const metric of PROBE_METRICS) {
+    const series = await prometheus.queryInstant(metric).catch(() => []);
+    if (series.length > 0) found.push(metric);
+  }
+  return found;
+}
+
 function parseRate(value: string): number {
   const rate = Number(value);
   if (!Number.isFinite(rate) || rate < 0 || rate > 1) {
@@ -191,17 +284,21 @@ async function describeTopology(suite: Suite) {
     up.map((s) => s.labels['job']).filter((j): j is string => j !== undefined),
   );
 
-  // Datastores appear as dependencies but are not scraped — that asymmetry is
-  // exactly what the planner ranks on.
-  const datastores = ['redis', 'postgres'];
-  const services = [
-    ...[...scraped].map((name) => ({
-      name,
-      dependsOn: DEPENDENCIES[name] ?? [],
-      scraped: true,
-    })),
-    ...datastores.map((name) => ({ name, dependsOn: [], scraped: scraped.has(name) })),
-  ];
+  // Everything named anywhere in the topology, plus everything scraped. A
+  // dependency that appears in the graph but never in `up` is precisely the
+  // unmonitored datastore the planner ranks highest.
+  const declared = suite.topology;
+  const named = new Set<string>([
+    ...scraped,
+    ...Object.keys(declared),
+    ...Object.values(declared).flat(),
+  ]);
+
+  const services = [...named].sort().map((name) => ({
+    name,
+    dependsOn: declared[name] ?? [],
+    scraped: scraped.has(name),
+  }));
 
   const knownMetrics: string[] = [];
   for (const metric of [
@@ -221,13 +318,6 @@ async function describeTopology(suite: Suite) {
   const rules = await prometheus.listAlertRules();
   return { topology: { services, knownMetrics }, rules };
 }
-
-const DEPENDENCIES: Readonly<Record<string, string[]>> = {
-  gateway: ['checkout', 'catalog'],
-  checkout: ['payments', 'postgres'],
-  payments: ['psp-mock'],
-  catalog: ['redis', 'postgres'],
-};
 
 function buildSession(
   globals: GlobalOptions,

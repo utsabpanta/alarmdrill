@@ -13,6 +13,8 @@
     "build": "pnpm -r run build",
     "clean": "pnpm -r exec rm -rf dist *.tsbuildinfo",
     "alarmdrill": "node packages/cli/dist/bin.js",
+    "release": "pnpm build && pnpm -r --filter \"./packages/*\" publish --access public",
+    "release:dry": "pnpm build && pnpm -r --filter \"./packages/*\" publish --dry-run --no-git-checks",
     "typecheck": "pnpm -r run typecheck",
     "lint": "eslint .",
     "test": "vitest run",
