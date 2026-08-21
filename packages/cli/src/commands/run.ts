@@ -13,6 +13,7 @@ import { buildScorecard, deriveFindings, renderMarkdown } from '@alarmdrill/repo
 import type { ExperimentOutcome } from '@alarmdrill/report';
 import { renderHuman, toJson, type JsonExperiment } from '../output.js';
 import type { Suite } from '../suite.js';
+import { checkHoldTimes, describeHoldWarnings } from '../hold-time.js';
 import { describeIssues, preflight } from '../preflight.js';
 import { waitUntilQuiet } from '../quiet.js';
 import { evaluateThresholds, type ThresholdOptions } from '../threshold.js';
@@ -78,6 +79,17 @@ export async function runCommand(deps: RunDeps): Promise<RunOutcome> {
           'look fine and mean nothing. Fix the above, or pass --skip-preflight.',
       );
     }
+  }
+
+  // Warn, do not refuse: a deliberately brief fault is a legitimate experiment.
+  // But an undetected result from too short a hold is a false accusation, and
+  // it looks exactly like a true finding.
+  const holdWarnings = checkHoldTimes(deps.suite, await prometheus.listAlertRules().catch(() => []));
+  if (holdWarnings.length > 0) {
+    deps.logger.warn(
+      { experiments: holdWarnings.map((w) => w.experimentId) },
+      'some experiments hold their fault for less time than the slowest alert rule needs to fire',
+    );
   }
 
   const catalog = { services: await discoverServices(prometheus) };
@@ -205,9 +217,14 @@ export async function runCommand(deps: RunDeps): Promise<RunOutcome> {
     await writeFile(deps.reportPath, markdown, 'utf8');
   }
 
+  const caveat =
+    holdWarnings.length > 0 && !deps.json
+      ? `\n  Caveat — experiment length:\n${describeHoldWarnings(holdWarnings)}\n`
+      : '';
+
   const stdout = deps.json
     ? `${JSON.stringify(toJson({ runId, scorecard, experiments, thresholds, detectOnly }), null, 2)}\n`
-    : renderHuman({ runId, scorecard, experiments, thresholds, detectOnly });
+    : renderHuman({ runId, scorecard, experiments, thresholds, detectOnly }) + caveat;
 
   // A failed experiment is not the same as monitoring that scored badly, so it
   // gets its own exit code rather than being folded into the threshold gate.

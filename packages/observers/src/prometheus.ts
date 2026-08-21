@@ -29,6 +29,7 @@ const rulesResponseSchema = z.object({
             query: z.string(),
             state: z.string().optional(),
             type: z.string().optional(),
+            duration: z.number().optional(),
           }),
         ),
       }),
@@ -59,6 +60,8 @@ export interface AlertRule {
   /** The PromQL. Prometheus calls this `query`, not `expr`, in its API. */
   readonly expr: string;
   readonly state: string;
+  /** The rule's `for:` clause in seconds — how long the condition must hold. */
+  readonly forSeconds: number;
 }
 
 export interface PrometheusClient {
@@ -135,7 +138,12 @@ export function createPrometheusClient(deps: PrometheusDeps): PrometheusClient {
       return parsed.data.data.groups.flatMap((group) =>
         group.rules
           .filter((rule) => rule.type === undefined || rule.type === 'alerting')
-          .map((rule) => ({ name: rule.name, expr: rule.query, state: rule.state ?? 'unknown' })),
+          .map((rule) => ({
+            name: rule.name,
+            expr: rule.query,
+            state: rule.state ?? 'unknown',
+            forSeconds: rule.duration ?? 0,
+          })),
       );
     },
 

@@ -58,6 +58,10 @@ experiments:
       kind: toxiproxy.latency
       proxy: checkout-to-payments
       latencyMs: 800
+    # GatewayHighLatency has for:60s over a 1m rate window, so the fault has to
+    # persist past both before it can fire. A 90s hold reverts it too early and
+    # reports a blind spot that is really a too-short experiment.
+    holdMs: 210000
     groundTruth:
       component: payments
       category: latency
