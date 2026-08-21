@@ -19,6 +19,10 @@ alarmdrill run --suite baseline
   Grade: C+ (detection 3/4 · diagnosis 2/4)
 ```
 
+*That command is the target and does not run yet — see [Status](#status) for
+what is built. The lab, the injectors, the observers, the blinded agent and the
+report all work today; wiring them into one command is the last milestone.*
+
 Chaos engineering tools break things to check the **system** survives. None of
 them check whether your **monitoring would have told you**.
 
@@ -35,9 +39,10 @@ sources, and pnpm's isolated linking makes the import unresolvable anyway.
 
 ## Status
 
-Early. **M0 (scaffold)** and **M1 (lab)** are done and verified; the injectors,
-observers, agents and report are not written yet. See the build order in
-[SPEC.md](./SPEC.md).
+**Work in progress.** Every package is built and tested, and the pieces work
+individually against the real lab — but they are **not yet wired into a single
+`alarmdrill run` command.** The example at the top of this README is the target,
+not something you can run today.
 
 | | | |
 |---|---|---|
@@ -45,11 +50,37 @@ observers, agents and report are not written yet. See the build order in
 | ✅ | M1 | the lab, with documented blind spots |
 | ✅ | M2 | injectors + cleanup guarantees |
 | ✅ | M3 | observers → evidence bundle |
-| ✅ | M4 | blinded diagnostician + grader |
+| ✅ | M4 | blinded diagnostician + voting grader, traces, replay |
 | ✅ | M5 | planner |
-| ✅ | M6 | report — blind spot found, rule proposed |
+| ✅ | M6 | report — findings, proposed rules, grade |
 | 🔨 | M7 | run lifecycle, CI thresholds, `--json` |
-| ⬜ | M8 | suite format, `run`/`plan`/`report` commands, ship |
+| ⬜ | M8 | suite format, `run`/`plan`/`report` commands, npm |
+
+### What works today
+
+- **The lab.** `pnpm lab:up` brings up 11 containers. Verified: stopping `redis`
+  leaves the catalog serving 200s in ~3ms while
+  `catalog_cache_lookups_total{result="error"}` climbs and **nothing alerts**;
+  stopping `payments` fires `ServiceDown` within ~20s.
+- **Injectors**, with journal-before-inject, idempotent revert, a deadman timer
+  and a prod-name refusal. Proven by SIGKILLing a process mid-injection and
+  sweeping the fault away from the journal alone.
+- **Observers** — polling, MTTD, detection rate, and the blinded evidence bundle.
+- **Diagnostician and grader**, behind one model interface with a fake. No test
+  calls a real model.
+- **Planner**, **report** and the **scorecard**.
+- **CLI:** `alarmdrill sweep` (reverts anything a crashed run left applied) plus
+  `--json`, `--version` and `--help`.
+
+### What does not work yet
+
+`alarmdrill run` is not wired. The orchestration exists in `packages/core` and
+every port it needs is implemented, but there is no suite definition format yet
+— which faults to run, against which targets, with what ground truth. That is
+M8, and it is the remaining design work rather than remaining plumbing.
+
+Nothing here has been used against a real production system, and it has one
+user. Treat the grades as a demo of the idea, not an audited measurement.
 
 ## The lab
 
@@ -103,11 +134,16 @@ a fresh session then reverts it using nothing but the journal on disk.
 Requires Node 22 and pnpm 10. **pnpm only** — never npm or yarn.
 
 ```bash
-pnpm -r typecheck && pnpm test   # unit tests, sub-second
+pnpm -r typecheck && pnpm test   # 191 unit tests, sub-second
 pnpm lint
 
-pnpm lab:up && pnpm test:integration   # needs the lab running
+pnpm lab:up && pnpm test:integration   # needs the lab; ~20s
+pnpm lab:down
 ```
+
+Unit tests never touch the network, a container or a model — a repo-level test
+enforces that no test file imports the Anthropic SDK. The integration suite is
+kept separate so the unit loop stays fast, and CI runs both.
 
 Conventions, hard rules and house style live in [CLAUDE.md](./CLAUDE.md); the
 design and its rationale live in [SPEC.md](./SPEC.md).
