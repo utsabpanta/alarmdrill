@@ -65,3 +65,23 @@ describe('FakeClock', () => {
     expect(fired).toBe(false);
   });
 });
+
+describe('FakeClock and pending async work', () => {
+  it('fires a timer scheduled by an await chain already in flight', async () => {
+    const clock = createFakeClock(0);
+    let done = false;
+
+    // advance() is called before sleep() has even been reached. Checking for
+    // timers before draining the microtask queue would miss this one and hang.
+    const work = (async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await clock.sleep(1_000);
+      done = true;
+    })();
+
+    await clock.advance(1_000);
+    await work;
+    expect(done).toBe(true);
+  });
+});

@@ -67,6 +67,10 @@ export function createFakeClock(start: Date | number = 0): FakeClock {
     advance: async (ms) => {
       const target = nowMs + ms;
       for (;;) {
+        // Drain pending async work FIRST. Callers routinely advance time while
+        // an await chain is still on its way to scheduling the timer we are
+        // about to look for; checking before flushing would miss it and hang.
+        await flushMicrotasks();
         const next = [...timers.entries()]
           .filter(([, timer]) => timer.at <= target)
           .sort(([, a], [, b]) => a.at - b.at)[0];

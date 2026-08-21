@@ -23,3 +23,19 @@ export {
   type LoggerConfig,
   type LogLevel,
 } from './logger.js';
+export {
+  DEFAULT_WINDOW_PADDING_MS,
+  runExperiment,
+  runSuite,
+  type ActiveInjectionLike,
+  type AlertLike,
+  type DetectionLike,
+  type ExperimentDeps,
+  type ExperimentOptions,
+  type ExperimentPorts,
+  type ExperimentResult,
+  type SuiteExperiment,
+  type SuiteOptions,
+  type SuiteResult,
+  type WatchLike,
+} from './run.js';

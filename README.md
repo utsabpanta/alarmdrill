@@ -48,7 +48,8 @@ observers, agents and report are not written yet. See the build order in
 | ✅ | M4 | blinded diagnostician + grader |
 | ✅ | M5 | planner |
 | ✅ | M6 | report — blind spot found, rule proposed |
-| ⬜ | M7–M8 | CLI polish, ship |
+| 🔨 | M7 | run lifecycle, CI thresholds, `--json` |
+| ⬜ | M8 | suite format, `run`/`plan`/`report` commands, ship |
 
 ## The lab
 
