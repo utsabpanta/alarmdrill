@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
@@ -92,5 +92,27 @@ describe('instrumentation', () => {
       'a payment-outcome metric appeared — the PSP decline fault is no longer a ' +
         'missing-instrumentation finding, so update README.md',
     ).toBe(false);
+  });
+});
+
+describe('the proposed-rules directory', () => {
+  const proposedDir = fileURLToPath(new URL('prometheus/proposed', LAB));
+
+  /**
+   * The lab's blind spots only mean something while nothing is closing them.
+   * A rule left in this directory silently changes what the baseline drill
+   * measures, and the run would still look perfectly normal.
+   */
+  it('is empty, so the documented blind spots are still blind', () => {
+    const rules = readdirSync(proposedDir).filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'));
+    expect(
+      rules,
+      'a proposed rule is loaded — the lab no longer demonstrates its documented gaps',
+    ).toEqual([]);
+  });
+
+  it('is wired into prometheus, so applying a rule there actually takes effect', () => {
+    const config = read('prometheus/prometheus.yml');
+    expect(config).toContain('/etc/prometheus/proposed/*.yml');
   });
 });

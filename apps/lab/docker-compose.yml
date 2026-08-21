@@ -168,6 +168,7 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./prometheus/proposed:/etc/prometheus/proposed:ro
     ports: ['9090:9090']
     depends_on:
       alertmanager: { condition: service_started }

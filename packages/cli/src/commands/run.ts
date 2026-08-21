@@ -8,12 +8,13 @@ import {
   type ModelClient,
 } from '@alarmdrill/agents';
 import type { InjectionSession } from '@alarmdrill/injectors';
-import { createPrometheusClient } from '@alarmdrill/observers';
+import { createAlertmanagerClient, createPrometheusClient } from '@alarmdrill/observers';
 import { buildScorecard, deriveFindings, renderMarkdown } from '@alarmdrill/report';
 import type { ExperimentOutcome } from '@alarmdrill/report';
 import { renderHuman, toJson, type JsonExperiment } from '../output.js';
 import type { Suite } from '../suite.js';
 import { describeIssues, preflight } from '../preflight.js';
+import { waitUntilQuiet } from '../quiet.js';
 import { evaluateThresholds, type ThresholdOptions } from '../threshold.js';
 import { buildPorts } from '../wire.js';
 
@@ -99,7 +100,19 @@ export async function runCommand(deps: RunDeps): Promise<RunOutcome> {
         ? withoutDiagnosis(buildPorts(experiment, wiring, catalog))
         : buildPorts(experiment, wiring, catalog),
     })),
-    { runId, settleMs: deps.suite.defaults.settleMs },
+    {
+      runId,
+      // Wait until the firing-alert set stops changing, not for a fixed delay:
+      // a latency alert with `for: 1m` over a 1m rate keeps firing for roughly
+      // two minutes after its fault ends.
+      settle: () =>
+        waitUntilQuiet({
+          alertmanager: createAlertmanagerClient({ baseUrl: deps.suite.endpoints.alertmanager }),
+          clock: systemClock,
+          logger: deps.logger,
+          maxWaitMs: deps.suite.defaults.settleMs,
+        }),
+    },
     { clock: systemClock, logger: deps.logger },
   );
 

@@ -6,6 +6,9 @@ global:
 
 rule_files:
   - /etc/prometheus/alerts.yml
+  # Empty by default. Where a rule alarmdrill proposed gets applied, so the
+  # deliberately-incomplete alerts.yml never has to be edited to close a gap.
+  - /etc/prometheus/proposed/*.yml
 
 alerting:
   alertmanagers:

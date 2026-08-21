@@ -26,6 +26,7 @@ export { renderHuman, toJson, type JsonExperiment, type JsonRun } from './output
 export { loadSuite, suiteSchema, targetOf, type FaultSpec, type Suite } from './suite.js';
 export { runCommand, type RunDeps, type RunOutcome } from './commands/run.js';
 export { preflight, describeIssues, type PreflightIssue } from './preflight.js';
+export { waitUntilQuiet, type QuietDeps, type QuietResult } from './quiet.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version?: string };

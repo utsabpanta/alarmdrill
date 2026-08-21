@@ -148,15 +148,14 @@ export interface SuiteOptions {
   /** Stop the whole suite if an experiment fails, rather than pressing on. */
   readonly failFast?: boolean;
   /**
-   * Quiet time between experiments, so the system finishes recovering before
-   * the next baseline is taken.
+   * Called between experiments to let the system finish recovering.
    *
-   * Without it, an alert that fires while the previous fault is being undone is
-   * still firing when the next experiment starts. It then either pollutes that
-   * baseline or — worse — looks like a fresh detection. Both make the score
-   * wrong in a way nothing else would catch.
+   * A callback rather than a duration, because how long recovery takes depends
+   * on the alert rules being drilled. A fixed wait that is too short makes the
+   * next experiment score the previous fault's lingering alerts as its own
+   * detection, and nothing downstream can tell that happened.
    */
-  readonly settleMs?: number;
+  readonly settle?: () => Promise<unknown>;
 }
 
 export interface SuiteExperiment<Poll, Evidence, Diagnosis, Grade, Alert extends AlertLike = AlertLike> {
@@ -182,9 +181,9 @@ export async function runSuite<Poll, Evidence, Diagnosis, Grade, Alert extends A
   // ambiguous about which fault it was explaining.
   let first = true;
   for (const experiment of experiments) {
-    if (!first && options.settleMs !== undefined && options.settleMs > 0) {
-      deps.logger.info({ settleMs: options.settleMs }, 'settling before the next experiment');
-      await deps.clock.sleep(options.settleMs);
+    if (!first && options.settle !== undefined) {
+      deps.logger.info('waiting for the system to settle before the next experiment');
+      await options.settle();
     }
     first = false;
 

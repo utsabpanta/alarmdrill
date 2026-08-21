@@ -209,37 +209,73 @@ describe('runSuite', () => {
 });
 
 describe('settling between experiments', () => {
-  it('waits between experiments so transients clear before the next baseline', async () => {
+  it('waits for the caller-supplied settle before the next experiment', async () => {
     const trace: Trace = { calls: [], reverted: 0 };
     const d = deps();
+    let settleCalls = 0;
+    let release: (() => void) | undefined;
+
     const experiments = ['a', 'b'].map((id) => ({
       options: { id, holdMs: 1_000 },
       ports: createPorts(trace),
     }));
 
-    const run = runSuite(experiments, { runId: 'r1', settleMs: 30_000 }, d);
+    const run = runSuite(
+      experiments,
+      {
+        runId: 'r1',
+        settle: () => {
+          settleCalls += 1;
+          return new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        },
+      },
+      d,
+    );
+
     await d.clock.advance(5_000);
 
-    // Still settling — the second experiment must not have started.
+    // Blocked in settle: the second experiment must not have started.
+    expect(settleCalls).toBe(1);
     expect(trace.calls.filter((c) => c === 'inject')).toHaveLength(1);
 
-    await d.clock.advance(40_000);
+    release?.();
+    await d.clock.advance(5_000);
     const result = await run;
+
     expect(result.results.map((r) => r.id)).toEqual(['a', 'b']);
+    // Settled once, between the two experiments — not before the first.
+    expect(settleCalls).toBe(1);
   });
 
   it('does not settle before the first experiment', async () => {
     const trace: Trace = { calls: [], reverted: 0 };
     const d = deps();
+    let settleCalls = 0;
+
     const run = runSuite(
       [{ options: { id: 'only', holdMs: 1_000 }, ports: createPorts(trace) }],
-      { runId: 'r1', settleMs: 60_000 },
+      { runId: 'r1', settle: () => { settleCalls += 1; return Promise.resolve(); } },
       d,
     );
     await d.clock.advance(2_000);
     const result = await run;
 
     // Nothing has run yet, so there is nothing to recover from.
+    expect(settleCalls).toBe(0);
     expect(result.results).toHaveLength(1);
+  });
+
+  it('runs without a settle callback at all', async () => {
+    const trace: Trace = { calls: [], reverted: 0 };
+    const d = deps();
+    const run = runSuite(
+      ['a', 'b'].map((id) => ({ options: { id, holdMs: 1_000 }, ports: createPorts(trace) })),
+      { runId: 'r1' },
+      d,
+    );
+    await d.clock.advance(10_000);
+    expect((await run).results).toHaveLength(2);
   });
 });
