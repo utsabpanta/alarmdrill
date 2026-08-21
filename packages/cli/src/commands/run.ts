@@ -13,6 +13,7 @@ import { buildScorecard, deriveFindings, renderMarkdown } from '@alarmdrill/repo
 import type { ExperimentOutcome } from '@alarmdrill/report';
 import { renderHuman, toJson, type JsonExperiment } from '../output.js';
 import type { Suite } from '../suite.js';
+import { describeIssues, preflight } from '../preflight.js';
 import { evaluateThresholds, type ThresholdOptions } from '../threshold.js';
 import { buildPorts } from '../wire.js';
 
@@ -34,6 +35,8 @@ export interface RunDeps {
   readonly reportPath?: string;
   readonly json: boolean;
   readonly thresholds: ThresholdOptions;
+  /** Drill even if the system looks unhealthy. Rarely what you want. */
+  readonly skipPreflight?: boolean;
 }
 
 export interface RunOutcome {
@@ -64,6 +67,18 @@ export async function runCommand(deps: RunDeps): Promise<RunOutcome> {
   }
 
   const prometheus = createPrometheusClient({ baseUrl: deps.suite.endpoints.prometheus });
+
+  if (deps.skipPreflight !== true) {
+    const issues = await preflight({ suite: deps.suite, prometheus });
+    if (issues.length > 0) {
+      throw new Error(
+        `the system is not healthy enough to drill:\n${describeIssues(issues)}\n\n` +
+          'Grading monitoring against an already-broken system produces numbers that ' +
+          'look fine and mean nothing. Fix the above, or pass --skip-preflight.',
+      );
+    }
+  }
+
   const catalog = { services: await discoverServices(prometheus) };
   const wiring = {
     suite: deps.suite,

@@ -22,6 +22,7 @@ export { evaluateThresholds, type ThresholdOptions, type ThresholdResult } from 
 export { renderHuman, toJson, type JsonExperiment, type JsonRun } from './output.js';
 export { loadSuite, suiteSchema, targetOf, type FaultSpec, type Suite } from './suite.js';
 export { runCommand, type RunDeps, type RunOutcome } from './commands/run.js';
+export { preflight, describeIssues, type PreflightIssue } from './preflight.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version?: string };
@@ -85,6 +86,7 @@ export function buildProgram(): Command {
     .option('--min-diagnosis <rate>', 'fail below this diagnosis rate, 0..1', parseRate)
     .option('--fail-on-needs-review', 'treat unsettled grades as a failure')
     .option('--detect-only', 'measure detection only; do not call a model')
+    .option('--skip-preflight', 'drill even if the system already looks unhealthy')
     .action(async (options: RunCommandOptions) => {
       const globals = program.opts<GlobalOptions>();
       const logger = createLogger({ level: globals.logLevel ?? 'info', pretty: globals.json !== true });
@@ -98,6 +100,7 @@ export function buildProgram(): Command {
         traceDir: options.traceDir,
         json: globals.json === true,
         ...(options.detectOnly === true ? { detectOnly: true } : {}),
+        ...(options.skipPreflight === true ? { skipPreflight: true } : {}),
         ...(options.report === undefined ? {} : { reportPath: options.report }),
         thresholds: {
           ...(options.minDetection === undefined ? {} : { minDetection: options.minDetection }),
@@ -164,6 +167,7 @@ interface RunCommandOptions {
   minDiagnosis?: number;
   failOnNeedsReview?: boolean;
   detectOnly?: boolean;
+  skipPreflight?: boolean;
 }
 
 function parseRate(value: string): number {
