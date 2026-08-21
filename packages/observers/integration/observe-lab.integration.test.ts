@@ -4,6 +4,7 @@ import {
   collectMetrics,
   createAlertmanagerClient,
   createPrometheusClient,
+  type ObservedAlert,
 } from '../src/index.js';
 
 /**
@@ -38,21 +39,43 @@ const requireLab = (): void => {
   }
 };
 
+/**
+ * A freshly started lab has no alerts yet: HighMemoryUsage needs its 30s `for:`
+ * to elapse plus a scrape or two. Poll for it rather than assuming a warm lab —
+ * asserting immediately passes on a developer machine that has been running the
+ * stack for an hour and fails on a CI runner that started it ten seconds ago.
+ */
+async function waitForAlerts(deadlineMs = 120_000): Promise<ObservedAlert[]> {
+  const client = createAlertmanagerClient({ baseUrl: ALERTMANAGER });
+  const deadline = Date.now() + deadlineMs;
+
+  for (;;) {
+    const alerts = await client.activeAlerts();
+    if (alerts.length > 0) return alerts;
+    if (Date.now() > deadline) {
+      throw new Error(
+        `no alerts fired within ${String(deadlineMs / 1000)}s of the lab starting. ` +
+          'HighMemoryUsage should always be firing — check the lab is scraping.',
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+  }
+}
+
 describe('observing the real lab', () => {
   it('parses live alertmanager alerts', async () => {
     requireLab();
-    const client = createAlertmanagerClient({ baseUrl: ALERTMANAGER });
-    const alerts = await client.activeAlerts();
+    const alerts = await waitForAlerts();
 
-    // The lab's chronically-noisy memory alert is always firing, which is
-    // exactly why it makes a dependable fixture.
+    // The lab's chronically-noisy memory alert is always firing once warm,
+    // which is exactly why it makes a dependable fixture.
     expect(alerts.length).toBeGreaterThan(0);
     expect(alerts.map((a) => a.alertname)).toContain('HighMemoryUsage');
     for (const alert of alerts) {
       expect(alert.fingerprint).not.toBe('');
       expect(Number.isNaN(Date.parse(alert.startsAt))).toBe(false);
     }
-  }, 60_000);
+  }, 180_000);
 
   it('runs every standard query against live prometheus', async () => {
     requireLab();
@@ -68,7 +91,7 @@ describe('observing the real lab', () => {
     const up = metrics.find((m) => m.query === 'up');
     expect(up?.series.length).toBeGreaterThan(0);
     expect(up?.series[0]?.samples.every((s) => Number.isFinite(s.value))).toBe(true);
-  }, 60_000);
+  }, 180_000);
 
   it('builds a bundle from live data that still leaks nothing', async () => {
     requireLab();
@@ -76,7 +99,7 @@ describe('observing the real lab', () => {
     const from = new Date(to.getTime() - 5 * 60_000);
     const bundle = buildEvidenceBundle({
       window: { from, to },
-      alerts: await createAlertmanagerClient({ baseUrl: ALERTMANAGER }).activeAlerts(),
+      alerts: await waitForAlerts(),
       metrics: await collectMetrics({
         prometheus: createPrometheusClient({ baseUrl: PROMETHEUS }),
         window: { from, to },
@@ -89,5 +112,5 @@ describe('observing the real lab', () => {
     for (const term of ['toxiproxy', 'inject', 'fault', 'revert', 'alarmdrill']) {
       expect(serialized, `live bundle leaked "${term}"`).not.toContain(term);
     }
-  }, 60_000);
+  }, 180_000);
 });

@@ -74,7 +74,13 @@ export default tseslint.config(
     // core owns the Clock implementation, so it is the one place allowed to
     // touch the platform timers it wraps. The lab is the system under test
     // rather than part of the measurement, so its timers are its own business.
-    files: ['packages/core/src/clock.ts', 'apps/lab/**/*.ts'],
+    files: [
+      'packages/core/src/clock.ts',
+      'apps/lab/**/*.ts',
+      // Integration harnesses poll real systems for real elapsed time; there is
+      // no injected clock that can make a container start faster.
+      'packages/*/integration/**/*.ts',
+    ],
     rules: { 'no-restricted-globals': 'off' },
   },
 );
