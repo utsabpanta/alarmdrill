@@ -147,6 +147,16 @@ export interface SuiteOptions {
   readonly runId: string;
   /** Stop the whole suite if an experiment fails, rather than pressing on. */
   readonly failFast?: boolean;
+  /**
+   * Quiet time between experiments, so the system finishes recovering before
+   * the next baseline is taken.
+   *
+   * Without it, an alert that fires while the previous fault is being undone is
+   * still firing when the next experiment starts. It then either pollutes that
+   * baseline or — worse — looks like a fresh detection. Both make the score
+   * wrong in a way nothing else would catch.
+   */
+  readonly settleMs?: number;
 }
 
 export interface SuiteExperiment<Poll, Evidence, Diagnosis, Grade, Alert extends AlertLike = AlertLike> {
@@ -170,7 +180,14 @@ export async function runSuite<Poll, Evidence, Diagnosis, Grade, Alert extends A
 
   // Strictly sequential: one fault at a time, so a diagnosis is never
   // ambiguous about which fault it was explaining.
+  let first = true;
   for (const experiment of experiments) {
+    if (!first && options.settleMs !== undefined && options.settleMs > 0) {
+      deps.logger.info({ settleMs: options.settleMs }, 'settling before the next experiment');
+      await deps.clock.sleep(options.settleMs);
+    }
+    first = false;
+
     try {
       results.push(await runExperiment(experiment.ports, experiment.options, deps));
     } catch (error: unknown) {

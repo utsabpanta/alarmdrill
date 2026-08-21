@@ -85,6 +85,8 @@ export const suiteSchema = z
         maxDurationMs: z.number().int().positive().default(120_000),
         windowPaddingMs: z.number().int().positive().default(120_000),
         pollIntervalMs: z.number().int().positive().default(2_000),
+        /** Quiet time between experiments so transients clear. */
+        settleMs: z.number().int().nonnegative().default(60_000),
       })
       .prefault({}),
     experiments: z.array(experimentSchema).min(1),

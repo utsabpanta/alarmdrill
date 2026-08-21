@@ -207,3 +207,39 @@ describe('runSuite', () => {
     await settled;
   });
 });
+
+describe('settling between experiments', () => {
+  it('waits between experiments so transients clear before the next baseline', async () => {
+    const trace: Trace = { calls: [], reverted: 0 };
+    const d = deps();
+    const experiments = ['a', 'b'].map((id) => ({
+      options: { id, holdMs: 1_000 },
+      ports: createPorts(trace),
+    }));
+
+    const run = runSuite(experiments, { runId: 'r1', settleMs: 30_000 }, d);
+    await d.clock.advance(5_000);
+
+    // Still settling — the second experiment must not have started.
+    expect(trace.calls.filter((c) => c === 'inject')).toHaveLength(1);
+
+    await d.clock.advance(40_000);
+    const result = await run;
+    expect(result.results.map((r) => r.id)).toEqual(['a', 'b']);
+  });
+
+  it('does not settle before the first experiment', async () => {
+    const trace: Trace = { calls: [], reverted: 0 };
+    const d = deps();
+    const run = runSuite(
+      [{ options: { id: 'only', holdMs: 1_000 }, ports: createPorts(trace) }],
+      { runId: 'r1', settleMs: 60_000 },
+      d,
+    );
+    await d.clock.advance(2_000);
+    const result = await run;
+
+    // Nothing has run yet, so there is nothing to recover from.
+    expect(result.results).toHaveLength(1);
+  });
+});

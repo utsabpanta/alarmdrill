@@ -39,15 +39,6 @@ import type { Suite, SuiteExperimentSpec } from './suite.js';
  */
 export interface WiringDeps {
   readonly suite: Suite;
-  /**
-   * Fingerprints seen firing in any earlier experiment's baseline.
-   *
-   * A chronically-noisy alert can be momentarily absent when one baseline is
-   * taken and back by the next experiment, where it would look novel. Carrying
-   * known noise forward across the run stops that, and matches how an operator
-   * thinks: an alert that has been firing all afternoon is not news.
-   */
-  readonly knownNoise?: Map<string, ObservedAlert>;
   readonly session: InjectionSession;
   readonly model: ModelClient;
   readonly clock: Clock;
@@ -82,16 +73,18 @@ export function buildPorts(
   const prometheus = createPrometheusClient({ baseUrl: deps.suite.endpoints.prometheus });
 
   return {
-    captureBaseline: async () => {
-      const sampled = await captureBaseline({
+    // Sampled, not snapshotted. Carrying noise forward ACROSS experiments was
+    // tried and is wrong: an alert that fires transiently while a previous
+    // experiment recovers would become permanent "noise" and could never count
+    // as a detection again. The settle period between experiments handles that
+    // instead, by letting transients clear before the next baseline is taken.
+    captureBaseline: () =>
+      captureBaseline({
         alertmanager,
         clock: deps.clock,
-        samples: 3,
+        samples: 5,
         intervalMs: 2_000,
-      });
-      for (const alert of sampled) deps.knownNoise?.set(alert.fingerprint, alert);
-      return [...(deps.knownNoise?.values() ?? sampled)];
-    },
+      }),
 
     startWatch: () =>
       startAlertWatch({

@@ -8,7 +8,7 @@ import {
   type ModelClient,
 } from '@alarmdrill/agents';
 import type { InjectionSession } from '@alarmdrill/injectors';
-import { createPrometheusClient, type ObservedAlert } from '@alarmdrill/observers';
+import { createPrometheusClient } from '@alarmdrill/observers';
 import { buildScorecard, deriveFindings, renderMarkdown } from '@alarmdrill/report';
 import type { ExperimentOutcome } from '@alarmdrill/report';
 import { renderHuman, toJson, type JsonExperiment } from '../output.js';
@@ -65,16 +65,12 @@ export async function runCommand(deps: RunDeps): Promise<RunOutcome> {
 
   const prometheus = createPrometheusClient({ baseUrl: deps.suite.endpoints.prometheus });
   const catalog = { services: await discoverServices(prometheus) };
-  // Shared across the whole run: an alert that was firing during experiment 1
-  // is still known noise in experiment 5.
-  const knownNoise = new Map<string, ObservedAlert>();
   const wiring = {
     suite: deps.suite,
     session: deps.session,
     model,
     clock: systemClock,
     logger: deps.logger,
-    knownNoise,
   };
 
   const suiteResult = await runSuite(
@@ -88,7 +84,7 @@ export async function runCommand(deps: RunDeps): Promise<RunOutcome> {
         ? withoutDiagnosis(buildPorts(experiment, wiring, catalog))
         : buildPorts(experiment, wiring, catalog),
     })),
-    { runId },
+    { runId, settleMs: deps.suite.defaults.settleMs },
     { clock: systemClock, logger: deps.logger },
   );
 
