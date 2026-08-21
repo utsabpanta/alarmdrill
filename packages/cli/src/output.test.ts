@@ -77,3 +77,48 @@ describe('toJson', () => {
     expect(json.experiments[1]?.proposedRule).toBe('CacheBackendUnavailable');
   });
 });
+
+describe('detect-only output', () => {
+  const skipped: JsonExperiment[] = [
+    {
+      id: 'redis-down', detected: false, timeToDetectMs: null,
+      verdict: 'skipped', needsReview: false, finding: 'blind_spot', proposedRule: null,
+    },
+  ];
+  const card = { ...scorecard, detected: 0, diagnosed: 0, total: 1, detectionRate: 0, diagnosisRate: 0 };
+
+  it('reports no grade rather than inventing one', () => {
+    // A grade combines detection and diagnosis. With no diagnosis attempted
+    // there is nothing to grade, and printing a letter anyway would be a lie.
+    const text = renderHuman({
+      runId: 'r', scorecard: card, experiments: skipped, thresholds: passing, detectOnly: true,
+    });
+    expect(text).toContain('no grade — diagnosis was skipped');
+    expect(text).not.toMatch(/Grade: [A-F]/);
+  });
+
+  it('marks the diagnosis as skipped, not as wrong', () => {
+    const text = renderHuman({
+      runId: 'r', scorecard: card, experiments: skipped, thresholds: passing, detectOnly: true,
+    });
+    expect(text).toContain('diagnosis — skipped');
+    expect(text).not.toContain('✗ wrong');
+  });
+
+  it('nulls the diagnosis numbers in json instead of reporting zero', () => {
+    // Zero would read as "diagnosed nothing", which is a much worse claim than
+    // "did not try".
+    const json = toJson({
+      runId: 'r', scorecard: card, experiments: skipped, thresholds: passing, detectOnly: true,
+    });
+    expect(json.grade).toBe('n/a');
+    expect(json.diagnosis).toEqual({ rate: null, diagnosed: null, skipped: true });
+  });
+
+  it('still reports detection honestly', () => {
+    const json = toJson({
+      runId: 'r', scorecard: card, experiments: skipped, thresholds: passing, detectOnly: true,
+    });
+    expect(json.detection).toEqual({ rate: 0, detected: 0, total: 1 });
+  });
+});

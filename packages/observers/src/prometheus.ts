@@ -17,6 +17,25 @@ const matrixResultSchema = z.object({
   values: z.array(sampleSchema),
 });
 
+const rulesResponseSchema = z.object({
+  status: z.literal('success'),
+  data: z.object({
+    groups: z.array(
+      z.object({
+        rules: z.array(
+          z.object({
+            name: z.string(),
+            // Prometheus returns the expression as `query`, not `expr`.
+            query: z.string(),
+            state: z.string().optional(),
+            type: z.string().optional(),
+          }),
+        ),
+      }),
+    ),
+  }),
+});
+
 const responseSchema = z.object({
   status: z.literal('success'),
   data: z.union([
@@ -35,9 +54,18 @@ export interface MetricSeries {
   readonly samples: readonly MetricSample[];
 }
 
+export interface AlertRule {
+  readonly name: string;
+  /** The PromQL. Prometheus calls this `query`, not `expr`, in its API. */
+  readonly expr: string;
+  readonly state: string;
+}
+
 export interface PrometheusClient {
   readonly queryRange: (query: string, range: TimeRange, stepSeconds?: number) => Promise<MetricSeries[]>;
   readonly queryInstant: (query: string) => Promise<MetricSeries[]>;
+  /** The alert rules actually loaded — what is watched, read from the source. */
+  readonly listAlertRules: () => Promise<AlertRule[]>;
 }
 
 export interface TimeRange {
@@ -87,6 +115,30 @@ export function createPrometheusClient(deps: PrometheusDeps): PrometheusClient {
   };
 
   return {
+    listAlertRules: async () => {
+      const url = `${deps.baseUrl}/api/v1/rules`;
+      let response: Response;
+      try {
+        response = await doFetch(url, { signal: AbortSignal.timeout(deps.timeoutMs ?? 10_000) });
+      } catch (cause: unknown) {
+        throw observationError(`prometheus unreachable at ${deps.baseUrl}`, { cause });
+      }
+      if (!response.ok) {
+        throw observationError(`prometheus responded ${String(response.status)} for /rules`);
+      }
+      const parsed = rulesResponseSchema.safeParse(await response.json());
+      if (!parsed.success) {
+        throw observationError(
+          `prometheus returned an unexpected rules shape: ${z.prettifyError(parsed.error)}`,
+        );
+      }
+      return parsed.data.data.groups.flatMap((group) =>
+        group.rules
+          .filter((rule) => rule.type === undefined || rule.type === 'alerting')
+          .map((rule) => ({ name: rule.name, expr: rule.query, state: rule.state ?? 'unknown' })),
+      );
+    },
+
     queryInstant: (query) => request('/api/v1/query', new URLSearchParams({ query })),
 
     queryRange: (query, range, stepSeconds = 15) =>

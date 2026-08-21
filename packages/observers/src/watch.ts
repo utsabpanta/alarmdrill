@@ -57,6 +57,37 @@ export function startAlertWatch(deps: WatchDeps): WatchHandle {
   };
 }
 
-export async function captureBaseline(client: AlertmanagerClient): Promise<ObservedAlert[]> {
-  return await client.activeAlerts();
+export interface BaselineDeps {
+  readonly alertmanager: AlertmanagerClient;
+  readonly clock: Clock;
+  /** Samples to union. One is not enough — see below. */
+  readonly samples?: number;
+  readonly intervalMs?: number;
+}
+
+/**
+ * What was already wrong before we touched anything.
+ *
+ * Sampled several times and unioned, never captured as a single snapshot.
+ * Alertmanager expires an alert if Prometheus briefly stops re-sending it, so
+ * one badly-timed read can return an empty list — and an empty baseline makes
+ * every chronically-firing alert look like a fresh detection, turning a blind
+ * spot into a false pass. That failure is silent and flattering, which is the
+ * worst combination.
+ */
+export async function captureBaseline(deps: BaselineDeps): Promise<ObservedAlert[]> {
+  const samples = Math.max(1, deps.samples ?? 3);
+  const seen = new Map<string, ObservedAlert>();
+
+  for (let i = 0; i < samples; i += 1) {
+    if (i > 0) await deps.clock.sleep(deps.intervalMs ?? 2_000);
+    try {
+      for (const alert of await deps.alertmanager.activeAlerts()) {
+        seen.set(alert.fingerprint, alert);
+      }
+    } catch {
+      // A failed sample must not shrink the baseline; the others still count.
+    }
+  }
+  return [...seen.values()];
 }

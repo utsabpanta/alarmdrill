@@ -15,16 +15,22 @@ import { runError } from './errors.js';
  * detections, and without that snapshot a chronically-noisy alert would make
  * every blind spot look caught.
  */
+/**
+ * The minimum core needs to log an alert. Callers supply their own richer type
+ * as the `Alert` parameter below — core never needs to know what else is on it,
+ * and widening this to fit one caller would drag observability details into
+ * the orchestrator.
+ */
 export interface AlertLike {
   readonly fingerprint: string;
   readonly alertname: string;
 }
 
-export interface DetectionLike {
+export interface DetectionLike<Alert extends AlertLike = AlertLike> {
   readonly detected: boolean;
   readonly timeToDetectMs: number | null;
-  readonly novel: readonly AlertLike[];
-  readonly preexisting: readonly AlertLike[];
+  readonly novel: readonly Alert[];
+  readonly preexisting: readonly Alert[];
 }
 
 export interface WatchLike<Poll> {
@@ -37,15 +43,15 @@ export interface ActiveInjectionLike {
 }
 
 /** Everything an experiment needs, supplied by the CLI. */
-export interface ExperimentPorts<Poll, Evidence, Diagnosis, Grade> {
-  readonly captureBaseline: () => Promise<AlertLike[]>;
+export interface ExperimentPorts<Poll, Evidence, Diagnosis, Grade, Alert extends AlertLike = AlertLike> {
+  readonly captureBaseline: () => Promise<Alert[]>;
   readonly startWatch: () => WatchLike<Poll>;
   readonly inject: () => Promise<ActiveInjectionLike>;
   readonly scoreDetection: (input: {
-    baseline: readonly AlertLike[];
+    baseline: readonly Alert[];
     polls: readonly Poll[];
     windowStart: Date;
-  }) => DetectionLike;
+  }) => DetectionLike<Alert>;
   /**
    * Builds the evidence bundle. Receives a window only — never the fault, and
    * never the moment it was applied.
@@ -67,9 +73,9 @@ export interface ExperimentOptions {
   readonly windowPaddingMs?: number;
 }
 
-export interface ExperimentResult<Evidence, Diagnosis, Grade> {
+export interface ExperimentResult<Evidence, Diagnosis, Grade, Alert extends AlertLike = AlertLike> {
   readonly id: string;
-  readonly detection: DetectionLike;
+  readonly detection: DetectionLike<Alert>;
   readonly evidence: Evidence;
   readonly diagnosis: Diagnosis;
   readonly grade: Grade;
@@ -82,11 +88,11 @@ export interface ExperimentDeps {
 
 export const DEFAULT_WINDOW_PADDING_MS = 120_000;
 
-export async function runExperiment<Poll, Evidence, Diagnosis, Grade>(
-  ports: ExperimentPorts<Poll, Evidence, Diagnosis, Grade>,
+export async function runExperiment<Poll, Evidence, Diagnosis, Grade, Alert extends AlertLike>(
+  ports: ExperimentPorts<Poll, Evidence, Diagnosis, Grade, Alert>,
   options: ExperimentOptions,
   deps: ExperimentDeps,
-): Promise<ExperimentResult<Evidence, Diagnosis, Grade>> {
+): Promise<ExperimentResult<Evidence, Diagnosis, Grade, Alert>> {
   const padding = options.windowPaddingMs ?? DEFAULT_WINDOW_PADDING_MS;
 
   // 1. What was already wrong before we touched anything.
@@ -143,23 +149,23 @@ export interface SuiteOptions {
   readonly failFast?: boolean;
 }
 
-export interface SuiteExperiment<Poll, Evidence, Diagnosis, Grade> {
+export interface SuiteExperiment<Poll, Evidence, Diagnosis, Grade, Alert extends AlertLike = AlertLike> {
   readonly options: ExperimentOptions;
-  readonly ports: ExperimentPorts<Poll, Evidence, Diagnosis, Grade>;
+  readonly ports: ExperimentPorts<Poll, Evidence, Diagnosis, Grade, Alert>;
 }
 
-export interface SuiteResult<Evidence, Diagnosis, Grade> {
+export interface SuiteResult<Evidence, Diagnosis, Grade, Alert extends AlertLike = AlertLike> {
   readonly runId: string;
-  readonly results: readonly ExperimentResult<Evidence, Diagnosis, Grade>[];
+  readonly results: readonly ExperimentResult<Evidence, Diagnosis, Grade, Alert>[];
   readonly failures: readonly { id: string; reason: string }[];
 }
 
-export async function runSuite<Poll, Evidence, Diagnosis, Grade>(
-  experiments: readonly SuiteExperiment<Poll, Evidence, Diagnosis, Grade>[],
+export async function runSuite<Poll, Evidence, Diagnosis, Grade, Alert extends AlertLike>(
+  experiments: readonly SuiteExperiment<Poll, Evidence, Diagnosis, Grade, Alert>[],
   options: SuiteOptions,
   deps: ExperimentDeps,
-): Promise<SuiteResult<Evidence, Diagnosis, Grade>> {
-  const results: ExperimentResult<Evidence, Diagnosis, Grade>[] = [];
+): Promise<SuiteResult<Evidence, Diagnosis, Grade, Alert>> {
+  const results: ExperimentResult<Evidence, Diagnosis, Grade, Alert>[] = [];
   const failures: { id: string; reason: string }[] = [];
 
   // Strictly sequential: one fault at a time, so a diagnosis is never

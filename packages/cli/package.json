@@ -2,6 +2,33 @@
   "name": "alarmdrill",
   "version": "0.0.0",
   "private": true,
+  "description": "Inject a known fault, then grade whether your monitoring would have caught it.",
+  "license": "MIT",
+  "author": "Utsab Pant",
+  "homepage": "https://github.com/utsabpanta/alarmdrill#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/utsabpanta/alarmdrill.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/utsabpanta/alarmdrill/issues"
+  },
+  "keywords": [
+    "chaos-engineering",
+    "observability",
+    "prometheus",
+    "alerting",
+    "monitoring",
+    "sre",
+    "incident-response"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
     "alarmdrill": "./dist/bin.js"
@@ -13,7 +40,10 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
@@ -25,7 +55,9 @@
     "@alarmdrill/injectors": "workspace:*",
     "@alarmdrill/observers": "workspace:*",
     "@alarmdrill/report": "workspace:*",
-    "commander": "catalog:"
+    "commander": "catalog:",
+    "yaml": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

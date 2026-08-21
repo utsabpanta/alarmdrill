@@ -1,7 +1,7 @@
 import { createFakeClock, createSilentLogger } from '@alarmdrill/core';
 import { describe, expect, it } from 'vitest';
 import type { AlertmanagerClient, ObservedAlert } from './alertmanager.js';
-import { startAlertWatch } from './watch.js';
+import { captureBaseline, startAlertWatch } from './watch.js';
 
 const alert = (name: string): ObservedAlert => ({
   fingerprint: `fp-${name}`,
@@ -91,5 +91,53 @@ describe('alert watch', () => {
     await watch.stop();
 
     expect(clock.pendingTimers()).toBe(0);
+  });
+});
+
+describe('captureBaseline', () => {
+  it('unions several samples so one bad read cannot empty the baseline', async () => {
+    const clock = createFakeClock(0);
+    let call = 0;
+    const flaky: AlertmanagerClient = {
+      activeAlerts: () => {
+        call += 1;
+        // Alertmanager expires an alert if Prometheus briefly stops re-sending
+        // it. A single snapshot landing in that gap reports no baseline, and
+        // every chronic alert then looks like a fresh detection — a blind spot
+        // silently reported as a pass.
+        return Promise.resolve(call === 2 ? [] : [alert('HighMemoryUsage')]);
+      },
+    };
+
+    const baseline = captureBaseline({ alertmanager: flaky, clock, samples: 3, intervalMs: 1_000 });
+    await clock.advance(5_000);
+
+    expect((await baseline).map((a) => a.alertname)).toEqual(['HighMemoryUsage']);
+  });
+
+  it('deduplicates an alert seen in every sample', async () => {
+    const clock = createFakeClock(0);
+    const steady: AlertmanagerClient = {
+      activeAlerts: () => Promise.resolve([alert('HighMemoryUsage')]),
+    };
+    const baseline = captureBaseline({ alertmanager: steady, clock, samples: 3, intervalMs: 500 });
+    await clock.advance(5_000);
+    expect(await baseline).toHaveLength(1);
+  });
+
+  it('survives a sample that throws rather than shrinking the baseline', async () => {
+    const clock = createFakeClock(0);
+    let call = 0;
+    const flaky: AlertmanagerClient = {
+      activeAlerts: () => {
+        call += 1;
+        return call === 1
+          ? Promise.reject(new Error('connection reset'))
+          : Promise.resolve([alert('HighMemoryUsage')]);
+      },
+    };
+    const baseline = captureBaseline({ alertmanager: flaky, clock, samples: 3, intervalMs: 500 });
+    await clock.advance(5_000);
+    expect(await baseline).toHaveLength(1);
   });
 });

@@ -9,6 +9,7 @@ export {
 } from './alertmanager.js';
 export {
   createPrometheusClient,
+  type AlertRule,
   type MetricSample,
   type MetricSeries,
   type PrometheusClient,

@@ -19,9 +19,15 @@ alarmdrill run --suite baseline
   Grade: C+ (detection 3/4 · diagnosis 2/4)
 ```
 
-*That command is the target and does not run yet — see [Status](#status) for
-what is built. The lab, the injectors, the observers, the blinded agent and the
-report all work today; wiring them into one command is the last milestone.*
+Try it against the bundled lab, no API key needed:
+
+```bash
+pnpm install && pnpm lab:up
+pnpm alarmdrill run --suite suites/baseline.yaml --detect-only
+```
+
+`--detect-only` measures what alerted and skips the blinded agent. Drop it and
+set `ANTHROPIC_API_KEY` to get the diagnosis and the grade.
 
 Chaos engineering tools break things to check the **system** survives. None of
 them check whether your **monitoring would have told you**.
@@ -39,10 +45,10 @@ sources, and pnpm's isolated linking makes the import unresolvable anyway.
 
 ## Status
 
-**Work in progress.** Every package is built and tested, and the pieces work
-individually against the real lab — but they are **not yet wired into a single
-`alarmdrill run` command.** The example at the top of this README is the target,
-not something you can run today.
+**Working end to end, not yet published.** `alarmdrill run` drills a suite
+against the lab: injecting, measuring detection, reverting, diagnosing and
+grading. It has not been published to npm and has not been pointed at a real
+production system.
 
 | | | |
 |---|---|---|
@@ -53,8 +59,8 @@ not something you can run today.
 | ✅ | M4 | blinded diagnostician + voting grader, traces, replay |
 | ✅ | M5 | planner |
 | ✅ | M6 | report — findings, proposed rules, grade |
-| 🔨 | M7 | run lifecycle, CI thresholds, `--json` |
-| ⬜ | M8 | suite format, `run`/`plan`/`report` commands, npm |
+| ✅ | M7 | run lifecycle, CI thresholds, `--json` |
+| 🔨 | M8 | suite format and commands done; npm publishing not |
 
 ### What works today
 
@@ -69,18 +75,29 @@ not something you can run today.
 - **Diagnostician and grader**, behind one model interface with a fake. No test
   calls a real model.
 - **Planner**, **report** and the **scorecard**.
-- **CLI:** `alarmdrill sweep` (reverts anything a crashed run left applied) plus
-  `--json`, `--version` and `--help`.
+- **The CLI**, four commands:
+
+  | | |
+  |---|---|
+  | `run --suite <path>` | drill a suite; `--detect-only` skips the agent, `--json` for CI, `--min-detection`/`--min-diagnosis` gate the exit code |
+  | `plan --suite <path>` | rank experiments by suspected blind spot, breaking nothing |
+  | `replay <runId>` | re-grade a recorded run against the current grader prompt |
+  | `sweep` | revert anything a crashed run left applied |
+
+- **A suite format** (`suites/baseline.yaml`) where ground truth is written down
+  by hand. Inferring the right answer from the fault would mean the tool grading
+  itself against its own assumptions.
 
 ### What does not work yet
 
-`alarmdrill run` is not wired. The orchestration exists in `packages/core` and
-every port it needs is implemented, but there is no suite definition format yet
-— which faults to run, against which targets, with what ground truth. That is
-M8, and it is the remaining design work rather than remaining plumbing.
+**Not on npm.** `alarmdrill` depends on five `workspace:*` packages that are
+private, so publishing today would produce a tarball nobody can install. That
+needs one of two decisions first: publish all six under the `@alarmdrill` scope,
+or bundle them into `dist`. The package metadata is ready for either.
 
-Nothing here has been used against a real production system, and it has one
-user. Treat the grades as a demo of the idea, not an audited measurement.
+**Only drilled against its own lab.** Nothing here has been pointed at a real
+production system, and it has one user. Treat the grades as a demonstration of
+the idea, not an audited measurement.
 
 ## The lab
 

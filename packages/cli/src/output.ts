@@ -11,7 +11,9 @@ export interface JsonRun {
   readonly runId: string;
   readonly grade: string;
   readonly detection: { readonly rate: number; readonly detected: number; readonly total: number };
-  readonly diagnosis: { readonly rate: number; readonly diagnosed: number };
+  readonly diagnosis:
+    | { readonly rate: number; readonly diagnosed: number }
+    | { readonly rate: null; readonly diagnosed: null; readonly skipped: true };
   readonly medianTimeToDetectMs: number | null;
   readonly needsReview: number;
   readonly experiments: readonly JsonExperiment[];
@@ -33,17 +35,23 @@ export function toJson(input: {
   scorecard: Scorecard;
   experiments: readonly JsonExperiment[];
   thresholds: ThresholdResult;
+  detectOnly?: boolean;
 }): JsonRun {
   return {
     schemaVersion: 1,
     runId: input.runId,
-    grade: input.scorecard.grade,
+    // A grade combines detection and diagnosis; with no diagnosis attempted
+    // there is no grade to report, and inventing one would be a lie.
+    grade: input.detectOnly === true ? 'n/a' : input.scorecard.grade,
     detection: {
       rate: input.scorecard.detectionRate,
       detected: input.scorecard.detected,
       total: input.scorecard.total,
     },
-    diagnosis: { rate: input.scorecard.diagnosisRate, diagnosed: input.scorecard.diagnosed },
+    diagnosis:
+      input.detectOnly === true
+        ? { rate: null, diagnosed: null, skipped: true }
+        : { rate: input.scorecard.diagnosisRate, diagnosed: input.scorecard.diagnosed },
     medianTimeToDetectMs: input.scorecard.medianTimeToDetectMs,
     needsReview: input.scorecard.needsReview,
     experiments: input.experiments,
@@ -57,6 +65,7 @@ export function renderHuman(input: {
   scorecard: Scorecard;
   experiments: readonly JsonExperiment[];
   thresholds: ThresholdResult;
+  detectOnly?: boolean;
 }): string {
   const lines: string[] = ['', `  ${input.runId}`, ''];
 
@@ -68,11 +77,13 @@ export function renderHuman(input: {
       ? `detected ${formatMs(experiment.timeToDetectMs)}`
       : 'detected never';
     const verdict =
-      experiment.verdict === 'correct'
-        ? 'diagnosis ✓ correct'
-        : experiment.verdict === 'partial'
-          ? 'diagnosis ~ partial'
-          : 'diagnosis ✗ wrong';
+      experiment.verdict === 'skipped'
+        ? 'diagnosis — skipped'
+        : experiment.verdict === 'correct'
+          ? 'diagnosis ✓ correct'
+          : experiment.verdict === 'partial'
+            ? 'diagnosis ~ partial'
+            : 'diagnosis ✗ wrong';
     const flag = !experiment.detected ? '  ✗ BLIND SPOT' : '';
 
     lines.push(`        ${detection} · ${verdict}${flag}`);
@@ -83,9 +94,13 @@ export function renderHuman(input: {
 
   lines.push(
     '',
-    `  Grade: ${input.scorecard.grade} (detection ${String(input.scorecard.detected)}/${String(
-      input.scorecard.total,
-    )} · diagnosis ${String(input.scorecard.diagnosed)}/${String(input.scorecard.total)})`,
+    input.detectOnly === true
+      ? `  Detection: ${String(input.scorecard.detected)}/${String(
+          input.scorecard.total,
+        )}  (no grade — diagnosis was skipped)`
+      : `  Grade: ${input.scorecard.grade} (detection ${String(input.scorecard.detected)}/${String(
+          input.scorecard.total,
+        )} · diagnosis ${String(input.scorecard.diagnosed)}/${String(input.scorecard.total)})`,
   );
 
   if (!input.thresholds.passed) {

@@ -1,0 +1,94 @@
+# The baseline drill against apps/lab.
+#
+# Every experiment names its own ground truth. That is deliberate: inferring the
+# right answer from the fault would mean the tool grading itself against its own
+# assumptions. Someone has to write down what a competent responder should have
+# concluded, or the score means nothing.
+#
+# The expected outcomes are documented in apps/lab/README.md. This suite drills
+# them; it does not define them.
+
+version: 1
+name: baseline
+
+endpoints:
+  toxiproxy: http://localhost:8474
+  alertmanager: http://localhost:9093
+  prometheus: http://localhost:9090
+
+# Nothing outside this list can be touched, and a name that looks like
+# production is refused even if listed.
+safety:
+  allow:
+    - alarmdrill-lab-payments
+    - alarmdrill-lab-redis
+    - checkout-to-payments
+    - psp-mock
+
+defaults:
+  holdMs: 90000
+  maxDurationMs: 150000
+
+experiments:
+  # Positive control. If this stops being detected, the harness is broken —
+  # not the lab.
+  - id: 01-payments-down
+    description: the payments service was stopped entirely
+    fault:
+      kind: docker.stop
+      container: alarmdrill-lab-payments
+    groundTruth:
+      component: payments
+      category: dependency_unavailable
+
+  # Detected, but the alert names no dependency — useful for paging, close to
+  # useless for diagnosis.
+  - id: 02-checkout-payments-latency
+    description: 800ms of latency was added to the checkout to payments hop
+    fault:
+      kind: toxiproxy.latency
+      proxy: checkout-to-payments
+      latencyMs: 800
+    groundTruth:
+      component: payments
+      category: latency
+
+  # The flagship blind spot. The catalog falls back to Postgres and keeps
+  # returning 200s; the cache error counter climbs and no rule reads it.
+  - id: 03-redis-down
+    description: redis was stopped, so the catalog fell back to the database
+    fault:
+      kind: docker.stop
+      container: alarmdrill-lab-redis
+    groundTruth:
+      component: redis
+      category: dependency_unavailable
+
+  # Invisible for a different reason: nothing records payment outcomes, so no
+  # rule could catch this. "I cannot tell" is the correct diagnosis here.
+  - id: 04-psp-declines
+    description: the payment processor began declining 60% of charges while still returning HTTP 200
+    fault:
+      kind: http.decline-rate
+      controlUrl: http://localhost:3003/_control/decline-rate
+      target: psp-mock
+      declineRate: 0.6
+    groundTruth:
+      component: psp-mock
+      category: business_logic_failure
+      undiagnosable: true
+
+  # Harmless. Must score as UNDETECTED even though the chronically-noisy memory
+  # alert is firing throughout — this is the experiment that catches a tool
+  # measuring alert volume instead of alert value.
+  - id: 05-harmless-blip
+    description: a harmless 200ms latency blip, well under any threshold
+    fault:
+      kind: toxiproxy.latency
+      proxy: checkout-to-payments
+      latencyMs: 200
+    groundTruth:
+      component: none
+      category: unknown
+      undiagnosable: true
+    holdMs: 60000
